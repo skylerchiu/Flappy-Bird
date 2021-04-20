@@ -4,9 +4,11 @@ const ctx = cvs.getContext("2d");
 let frames = 0;
 const DEGREE = Math.PI/180;
 
+//load images
 const sprite = new Image();
 sprite.src = "images/sprite.png";
 
+//sets game states
 const state = {
     current : 0,
     getReady : 0, 
@@ -14,7 +16,14 @@ const state = {
     over: 2,
 }
 
+const startBtn = {
+    x : 120,
+    y : 263, 
+    w : 83, 
+    h : 29,
+}
 
+//switch case for game states and game reset
 cvs.addEventListener("click", function(evt){
     switch(state.current){
         case state.getReady:
@@ -24,13 +33,23 @@ cvs.addEventListener("click", function(evt){
              bird.flap()
              break;
          case state.over:
-             state.current =  state.getReady;
-             break;
+            let rect = cvs.getBoundingClientRect();
+            let clickX = evt.clientX - rect.left;
+            let clickY = evt.clientY - rect.top;
+            
+            // CHECK IF WE CLICK ON THE START BUTTON
+            if(clickX >= startBtn.x && clickX <= startBtn.x + startBtn.w && clickY >= startBtn.y && clickY <= startBtn.y + startBtn.h) {
+                pipes.reset();
+                bird.speedReset();
+                score.reset();
+                state.current = state.getReady;
+            }
+            break;
  
     } 
  });
 
-
+//Background object
 const bg = {
     sX:0,
     sY:0,
@@ -40,13 +59,12 @@ const bg = {
     y:cvs.height-226,
 
     draw : function(){
-        ctx.drawImage (sprite, this.sX, this.sY, this.w, this.h, this.x, this.y
-            , this.w, this.h);
-
+        ctx.drawImage (sprite, this.sX, this.sY, this.w, this.h, this.x, this.y, this.w, this.h);
         ctx.drawImage (sprite, this.sX, this.sY, this.w, this.h, this.x +this.w, this.y, this.w, this.h);
     }
 }
 
+//Foreground object
 const fg = {
     sX:276,
     sY:0,
@@ -54,7 +72,6 @@ const fg = {
     h:112,
     x:0,
     y:cvs.height - 112,
-
     dx: 2,
 
     draw :function (){
@@ -65,7 +82,7 @@ const fg = {
 
     update : function(){
         if (state.current == state.game){
-            this.x = (this.x- this.dx)%(this.w/2);
+            this.x = (this.x - this.dx) % (this.w/2);
         }
     }
    
@@ -74,7 +91,7 @@ const fg = {
 
 //Bird Object
 const bird = {
-    animation : [
+    animation : [ //Sets different frame images
         {sX: 276, sY:112},
         {sX: 276, sY:139},
         {sX: 276, sY:164},
@@ -85,10 +102,11 @@ const bird = {
     w:34,
     h:26,
 
+    radius : 12,
     frame:0,
 
-    gravity: 0.25,
-    jump: 4.6,
+    gravity: 0.25, //rate of which the bird falls
+    jump: 4.6, //height of each jump when clicked
     speed:0,
     rotation: 0,
 
@@ -131,12 +149,15 @@ const bird = {
             }
 
             if (this.speed >= this.jump){ //Means the bird is falling down
-                this.rotation = 90 * DEGREE;
+                this.rotation = 70 * DEGREE;
                 this.frame = 1;
             } else {
                 this.rotation = -25 * DEGREE;
             }
         }
+    },
+    speedReset : function(){
+        this.speed = 0;
     }
 }
 
@@ -158,6 +179,7 @@ const getReady = {
     }
 }
 
+//Game Over image block
 const gameOver = {
     sX:175,
     sY : 228,
@@ -174,6 +196,7 @@ const gameOver = {
     }
 }
 
+//Pipe object
 const pipes = {
     position : [],
     
@@ -188,7 +211,7 @@ const pipes = {
     
     w : 53,
     h : 400,
-    gap : 85,
+    gap : 100,
     maxYPos : -150,
     dx : 2,
 
@@ -207,8 +230,6 @@ const pipes = {
         }
     },
   
- 
-    
     update: function(){
         if(state.current !== state.game) return;
         
@@ -221,19 +242,70 @@ const pipes = {
         for(let i = 0; i < this.position.length; i++){
             let p = this.position[i];
 
-            // COLLISION DETECTION
-            // TOP PIPE
 
-            
-            // MOVE THE PIPES TO THE LEFT
+            let bottomPipeYPos = p.y + this.h +this.gap;
+            //Collision of top pipe
+            if (bird.x + bird.radius > p.x && bird.x - bird.radius < p.x + this.w && bird.y + bird.radius > p.y && bird.y - bird.radius < p.y + this.h){
+                state.current=state.over;
+            }
+
+             //Collision of bottom pipe
+            if (bird.x + bird.radius > p.x && bird.x - bird.radius < p.x + this.w && bird.y + bird.radius > bottomPipeYPos && bird.y - bird.radius < bottomPipeYPos + this.h){
+                state.current=state.over;
+            }
+
+            //Moves pipes left
             p.x -= this.dx;
-            
+
             // if the pipes go beyond canvas, we delete them from the array
+            if (p.x + this.w <=0){
+                this.position.shift();
+                score.value +=1;
+                score.best = Math.max(score.value, score.best);
+                localStorage.setItem("best", score.best);
+            }
 
         }
     },
 
+    reset : function(){
+        this.position = [];
+    }
+
     
+}
+
+
+//Score tracking and display
+const score = {
+best: parseInt(localStorage.getItem("best")) || 0,
+value : 0,
+
+draw : function(){
+    ctx.fillStyle = "#FFF";
+    ctx.strokeStyle = "#000"
+
+    if(state.current==state.game){
+        ctx.lineWidth = 2;
+        ctx.font = "35px Teko";
+        ctx.fillText(this.value, cvs.width/2, 50);
+        ctx.strokeText(this.value, cvs.width/2, 50);
+
+    }else if(state.current==state.over){
+        ctx.font = "30px Teko";
+        //Current Score
+        ctx.fillText(this.value, 225, 186);
+        ctx.strokeText(this.value, 225, 186);
+        //Best Score
+        ctx.fillText(this.best, 225, 228);
+        ctx.strokeText(this.best, 225, 228);
+    }
+ 
+},
+reset : function(){
+    this.value = 0;
+}
+
 }
 
 function draw(){
@@ -246,6 +318,7 @@ function draw(){
     bird.draw();
     getReady.draw();
     gameOver.draw();
+    score.draw();
     
 }
 
